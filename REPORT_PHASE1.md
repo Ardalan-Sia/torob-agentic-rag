@@ -171,10 +171,3 @@ Artifacts:
 
 ---
 
-## 10) Phase 2 Outlook
-کارهای پیشنهادی فاز ۲:
-- ساخت سرویس کامل RAG (retrieval + generation)
-- deployment encoder و FAISS
-- مانیتورینگ کیفیت retrieval
-- بهبود text retrieval (encoder بهتر + reranker + category/brand boosting)
-- طراحی evaluator خودکار
