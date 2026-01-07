@@ -1,0 +1,138 @@
+seed: 42
+
+paths:
+  data_dir: "/home/ardalan-sia/Documents/ML/Project-github/MLSD-Project/Torob-Database"
+  artifacts_dir: "./torob_rag/artifacts"
+
+tables:
+  base_products: "base_products.parquet"
+  members: "members.parquet"
+  categories: "categories.parquet"
+  brands: "brands.parquet"
+  shops: "shops.parquet"
+  cities: "cities.parquet"
+  searches: "searches.parquet"
+  base_views: "base_views.parquet"
+  final_clicks: "final_clicks.parquet"
+
+
+eda:
+  sample_size_members: 500000
+  sample_size_searches: 200000
+  plots_max_categories: 20
+  plots_max_brands: 20
+  members_per_base_cap: 50
+  price_cap_quantile_for_plot: 0.999
+
+
+cleaning:
+  price_min_valid: 1
+  # این را بعد از دیدن outlier ها قطعی می‌کنیم؛ فعلاً موقت:
+  price_max_cap: 1000000000   # 1e9 (تومان) موقت
+  drop_rows_with_invalid_price: true
+
+  text:
+    lowercase_english: true
+    strip_whitespace: true
+    join_fields:
+      - persian_name
+      - english_name
+      - category_title
+      - brand_title
+      - extra_features
+
+
+subset:
+  max_base_products: 200000
+  fill_strategy: "stratified_by_category"   # اگر base_views کمتر از max بود
+  per_category_cap: 3000
+
+
+embeddings:
+  text:
+    backend: "sentence_transformers"
+    model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    batch_size: 64
+    normalize: true
+
+    reuse:
+      enabled: true
+      # مسیر دقیق فولدری که ids.npy و text_emb.npy و meta.json داخلش هست:
+      precomputed_dir: "/ABS/PATH/TO/your/OUT_DIR/embeddings/sample/text"
+      ids_file: "ids.npy"
+      emb_file: "text_emb.npy"
+      meta_file: "meta.json"
+
+      # اگر کمتر از این درصد coverage بود و compute_missing=false → فقط intersection را نگه می‌داریم
+      min_coverage: 0.95
+
+      # اگر true باشد: فقط missingها را encode می‌کنیم (hybrid)
+      compute_missing: false
+
+
+images:
+  images_dir: "/home/ardalan-sia/Documents/ML/Project3/images/balanced_images"
+  allowed_ext: [".jpg", ".jpeg", ".png", ".webp"]
+  filename_mode: "stem_is_random_key"
+
+
+vector_db:
+  faiss:
+    metric: "ip"      # inner product (برای embeddingهای normalize شده == cosine)
+    index_type: "flat"
+
+retrieval:
+  text:
+    top_k: 10
+    candidate_pool: 800
+    lexical_rerank: true
+
+
+evaluation:
+  sample_searches: 5000
+  k_values: [1, 5, 10]
+  seed: 42
+
+
+runs:
+  text_run: "e5_v1"
+
+embeddings_e5:
+  model_name: "intfloat/multilingual-e5-small"
+  batch_size: 64
+  max_length: 128
+  normalize: true
+
+runs:
+  text_run: "e5_v1"
+
+
+runs:
+  image_run: "clip_v1"
+
+image_subset:
+  max_base_products: 20000
+
+image_download:
+  timeout_sec: 20
+  max_retries: 2
+  num_workers: 8
+  user_agent: "torob-rag/0.1"
+
+image_embeddings:
+  model_name: "openai/clip-vit-base-patch32"
+  batch_size: 32
+  normalize: true
+  image_size: 224
+
+
+multimodal:
+  run: "clip_v1"
+  text_model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+  text_batch_size: 64
+  text_max_length: 128
+  normalize: true
+  top_k: 10
+  candidate_pool_text: 200
+  candidate_pool_image: 200
+  alpha_text: 0.5
