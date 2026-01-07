@@ -135,4 +135,4 @@ multimodal:
   top_k: 10
   candidate_pool_text: 200
   candidate_pool_image: 200
-  alpha_text: 0.5
+  alpha_text: 0.2
