@@ -1,0 +1,526 @@
+% برای کامپایل این فایل از XeLaTeX استفاده کنید.
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\usepackage{xepersian}
+
+\settextfont{Tahoma}
+\setlatintextfont{Times New Roman}
+\setmonofont{Consolas}
+
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{codeframe}{RGB}{210,210,210}
+\definecolor{linkblue}{RGB}{20,80,160}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=linkblue,
+  urlcolor=linkblue,
+  citecolor=linkblue
+}
+
+\lstdefinestyle{projectcode}{
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  numbers=none
+}
+
+\lstdefinelanguage{json}{
+  basicstyle=\ttfamily\small,
+  showstringspaces=false,
+  breaklines=true,
+  morestring=[b]",
+  morecomment=[l]{//},
+  literate=
+   *{0}{{{\color{blue}0}}}{1}
+    {1}{{{\color{blue}1}}}{1}
+    {2}{{{\color{blue}2}}}{1}
+    {3}{{{\color{blue}3}}}{1}
+    {4}{{{\color{blue}4}}}{1}
+    {5}{{{\color{blue}5}}}{1}
+    {6}{{{\color{blue}6}}}{1}
+    {7}{{{\color{blue}7}}}{1}
+    {8}{{{\color{blue}8}}}{1}
+    {9}{{{\color{blue}9}}}{1}
+}
+
+\lstset{style=projectcode}
+
+\newcommand{\code}[1]{\lr{\texttt{#1}}}
+
+\title{مستندات فاز دوم پروژه\\
+عامل هوشمند روی سامانه RAG فاز اول}
+\author{پروژه بازیابی محصول ترب}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+هدف فاز دوم، ساخت یک لایه عامل هوشمند روی سامانه بازیابی محصول فاز اول است. این عامل از خروجی‌های فاز اول به عنوان ابزار بازیابی استفاده می‌کند، از طریق نقطه پایانی \code{/chat} قابل ارزیابی است، حافظه کوتاه‌مدت را بر اساس \code{chat\_id} نگه می‌دارد، و پاسخ‌ها را در قالب مورد انتظار داور شامل \code{message}، \code{base\_random\_keys} و \code{member\_random\_keys} تولید می‌کند.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{محل قرارگیری پروژه}
+
+کدهای فاز دوم به صورت جدا از فاز اول در مسیر زیر قرار گرفته‌اند:
+
+\begin{latin}
+\begin{lstlisting}
+<PROJECT_ROOT>\phase2
+\end{lstlisting}
+\end{latin}
+
+این پوشه، کدهای فاز اول را تغییر نمی‌دهد و فقط از خروجی‌های آماده فاز اول استفاده می‌کند. خروجی‌های فاز اول از مسیر زیر خوانده می‌شوند:
+
+\begin{latin}
+\begin{lstlisting}
+<PROJECT_ROOT>\phase1\torob_rag\artifacts
+\end{lstlisting}
+\end{latin}
+
+\section{خلاصه پیاده‌سازی بر اساس خواسته‌های مستند پروژه}
+
+\begin{longtable}{|p{0.27\textwidth}|p{0.36\textwidth}|p{0.27\textwidth}|}
+\hline
+\textbf{بخش خواسته‌شده در مستند} & \textbf{کاری که انجام شده است} & \textbf{فایل‌های اصلی} \\
+\hline
+ساخت عامل با قابلیت استفاده از ابزار & عامل نوع درخواست کاربر را تشخیص می‌دهد و هر زمان داده محصول لازم باشد ابزار RAG را فراخوانی می‌کند. & \code{agent.py}، \code{rag.py} \\
+\hline
+دسترسی به RAG فاز اول از طریق ابزار & داده‌های پاک‌سازی‌شده فاز اول به وسیله کلاس ابزار RAG خوانده و جست‌وجو می‌شوند. & \code{rag.py} \\
+\hline
+حافظه کوتاه‌مدت & پیام‌ها و اطلاعات مکالمه بر اساس \code{chat\_id} ذخیره می‌شوند. & \code{memory.py} \\
+\hline
+رابط API برای داوری & نقطه پایانی \code{POST /chat} دقیقا با قالب خواسته‌شده پیاده‌سازی شده است. & \code{server.py} \\
+\hline
+رابط ساده برای تست & علاوه بر API، یک صفحه ساده در مسیر \code{/} و یک CLI نیز فراهم شده است. & \code{server.py}، \code{cli.py} \\
+\hline
+مانیتورینگ و لاگ & فراخوانی ابزار، خواندن و نوشتن حافظه، پاسخ عامل و متریک‌ها در فایل‌های محلی ذخیره می‌شوند. & \code{monitoring.py} \\
+\hline
+گاردریل‌ها & درخواست‌هایی که می‌خواهند پرامپت سیستم یا کانتکست پنهان را ببینند رد می‌شوند. & \code{agent.py} \\
+\hline
+سناریوهای تست & تست‌های دودویی و چند سناریوی نمونه برای بررسی API آماده شده‌اند. & \code{tests/}، \code{docs/test\_scenarios.md} \\
+\hline
+\end{longtable}
+
+\section{معماری کلی}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=1.55cm,
+  box/.style={rectangle, draw, rounded corners, align=center, minimum width=2.8cm, minimum height=0.9cm},
+  db/.style={cylinder, draw, shape border rotate=90, align=center, minimum width=2.7cm, minimum height=1.1cm},
+  arrow/.style={-{Latex[length=3mm]}, thick}
+]
+\node[box] (user) {کاربر / داور};
+\node[box, left=of user] (api) {API\\ \lr{/chat}};
+\node[box, left=of api] (agent) {هسته عامل};
+\node[box, above left=of agent] (memory) {حافظه کوتاه‌مدت};
+\node[box, below left=of agent] (rag) {ابزار RAG};
+\node[db, left=of rag] (artifacts) {خروجی‌های\\فاز اول};
+\node[box, left=of agent] (response) {پاسخ JSON};
+\node[box, below=of rag] (monitor) {لاگ و متریک};
+
+\draw[arrow] (user) -- (api);
+\draw[arrow] (api) -- (agent);
+\draw[arrow] (agent) -- (memory);
+\draw[arrow] (agent) -- (rag);
+\draw[arrow] (rag) -- (artifacts);
+\draw[arrow] (agent) -- (response);
+\draw[arrow] (agent) -- (monitor);
+\end{tikzpicture}
+\caption{معماری کلی سامانه عامل هوشمند فاز دوم}
+\end{figure}
+
+\section{اجزای اصلی سامانه}
+
+\subsection{سرور HTTP}
+
+سرور با کتابخانه استاندارد پایتون یعنی \code{http.server} ساخته شده است و چهار مسیر اصلی دارد:
+
+\begin{itemize}[noitemsep]
+  \item \code{GET /}: صفحه ساده برای تست دستی در مرورگر.
+  \item \code{GET /health}: بررسی سلامت سرویس.
+  \item \code{GET /metrics}: نمایش متریک‌های ساده اجرا.
+  \item \code{POST /chat}: نقطه پایانی اصلی برای داوری.
+\end{itemize}
+
+فایل مربوط:
+
+\begin{latin}
+\begin{lstlisting}
+phase2/src/agentic_rag/server.py
+\end{lstlisting}
+\end{latin}
+
+\subsection{هسته عامل}
+
+هسته عامل درخواست کاربر را دریافت می‌کند و مشخص می‌کند که باید کدام مسیر پاسخ‌دهی اجرا شود. دسته‌های تشخیص داده‌شده عبارت‌اند از:
+
+\begin{itemize}[noitemsep]
+  \item جست‌وجوی محصول،
+  \item سوال درباره ویژگی یک محصول،
+  \item سوال درباره قیمت یا فروشنده،
+  \item پیدا کردن فروشنده در گفت‌وگوی چندمرحله‌ای،
+  \item مقایسه چند محصول،
+  \item درخواست تصویری،
+  \item درخواست نامرتبط یا درخواست ناامن.
+\end{itemize}
+
+فایل مربوط:
+
+\begin{latin}
+\begin{lstlisting}
+phase2/src/agentic_rag/agent.py
+\end{lstlisting}
+\end{latin}
+
+\subsection{ابزار RAG فاز اول}
+
+ابزار RAG داده‌های واقعی فاز اول را می‌خواند. فایل‌های اصلی مورد استفاده:
+
+\begin{latin}
+\begin{lstlisting}
+torob_rag/artifacts/clean/unified_base_products.parquet
+torob_rag/artifacts/clean/members_clean.parquet
+torob_rag/artifacts/embeddings/clip_v1/image/image_index.parquet
+\end{lstlisting}
+\end{latin}
+
+این ابزار سه عملیات اصلی دارد:
+
+\begin{itemize}[noitemsep]
+  \item \code{search\_products}: جست‌وجوی محصول در سطح Base Product.
+  \item \code{get\_members}: بازیابی محصولات فروشگاهی یا Member Product برای یک Base.
+  \item \code{image\_to\_base}: برگرداندن یک کلید Base از ایندکس تصویری فاز اول.
+\end{itemize}
+
+فایل مربوط:
+
+\begin{latin}
+\begin{lstlisting}
+phase2/src/agentic_rag/rag.py
+\end{lstlisting}
+\end{latin}
+
+\subsection{حافظه}
+
+حافظه بر اساس \code{chat\_id} کار می‌کند. اگر داور چند درخواست پشت سر هم با یک \code{chat\_id} بفرستد، سیستم اطلاعات قبلی همان مکالمه را نگه می‌دارد.
+
+موارد ذخیره‌شده:
+
+\begin{itemize}[noitemsep]
+  \item پیام‌های اخیر کاربر و عامل،
+  \item شهر کاربر،
+  \item بودجه،
+  \item سبک یا جنس مدنظر،
+  \item نیت محصولی کاربر.
+\end{itemize}
+
+حافظه هنگام اجرا در مسیر زیر ذخیره می‌شود:
+
+\begin{latin}
+\begin{lstlisting}
+phase2/runtime/memory.json
+\end{lstlisting}
+\end{latin}
+
+\subsection{مانیتورینگ}
+
+برای مانیتورینگ سبک، رویدادها و متریک‌ها در فایل ذخیره می‌شوند. موارد ثبت‌شده شامل فراخوانی ابزار، خواندن و نوشتن حافظه، پاسخ عامل و خطاهای احتمالی است.
+
+\begin{latin}
+\begin{lstlisting}
+phase2/logs/events.jsonl
+phase2/logs/metrics.json
+\end{lstlisting}
+\end{latin}
+
+متریک‌ها:
+
+\begin{itemize}[noitemsep]
+  \item میانگین زمان پاسخ‌دهی،
+  \item تعداد تقریبی توکن به ازای هر پیام،
+  \item نرخ برخورد حافظه یا Memory Hit Rate.
+\end{itemize}
+
+\section{قرارداد API}
+
+\subsection{نقطه پایانی}
+
+\begin{latin}
+\begin{lstlisting}
+POST /chat
+Content-Type: application/json
+\end{lstlisting}
+\end{latin}
+
+\subsection{قالب درخواست}
+
+\begin{latin}
+\begin{lstlisting}[language=json]
+{
+  "chat_id": "test-1",
+  "messages": [
+    {
+      "type": "text",
+      "content": "USER_MESSAGE"
+    }
+  ]
+}
+\end{lstlisting}
+\end{latin}
+
+\subsection{قالب پاسخ}
+
+\begin{latin}
+\begin{lstlisting}[language=json]
+{
+  "message": "ANSWER_TEXT",
+  "base_random_keys": ["hhtgaa"],
+  "member_random_keys": ["pjwyvz"]
+}
+\end{lstlisting}
+\end{latin}
+
+\section{پیاده‌سازی سناریوهای خواسته‌شده}
+
+\subsection{سناریو اول: سوال درباره ویژگی یک محصول}
+
+وقتی کاربر درباره ویژگی‌هایی مثل جنس، ظرفیت، عرض، رنگ یا ابعاد سوال می‌پرسد، عامل ابتدا محصول را در داده فاز اول جست‌وجو می‌کند. سپس مقدار ویژگی از ستون \code{extra\_features} استخراج می‌شود.
+
+مسیر اجرا:
+
+\begin{latin}
+\begin{lstlisting}
+Agent._feature_question()
+Phase1RAGTool.answer_feature()
+\end{lstlisting}
+\end{latin}
+
+خروجی شامل پاسخ متنی و \code{base\_random\_keys} است.
+
+\subsection{سناریو دوم: سوال درباره فروشنده یا قیمت}
+
+اگر کاربر درباره فروشنده یا کمترین قیمت سوال کند، عامل ابتدا محصول پایه را پیدا می‌کند. سپس در جدول \code{members\_clean.parquet} همه فروشنده‌های مربوط به همان \code{base\_random\_key} جست‌وجو می‌شوند.
+
+برای سوال‌های مربوط به کمترین قیمت، ردیف‌های Member بر اساس قیمت مرتب می‌شوند.
+
+مسیر اجرا:
+
+\begin{latin}
+\begin{lstlisting}
+Agent._seller_question()
+Phase1RAGTool.get_members()
+\end{lstlisting}
+\end{latin}
+
+\subsection{سناریو سوم: پیدا کردن فروشنده در چند مرحله}
+
+اگر درخواست اولیه مبهم باشد، عامل از کاربر سوال تکمیلی می‌پرسد. در پیام‌های بعدی، اگر \code{chat\_id} یکسان باشد، اطلاعات قبلی مثل بودجه، شهر یا سبک مدنظر از حافظه خوانده می‌شود.
+
+مسیر اجرا:
+
+\begin{latin}
+\begin{lstlisting}
+Agent._seller_hunt()
+MemoryStore.update_slots()
+\end{lstlisting}
+\end{latin}
+
+\subsection{سناریو چهارم: مقایسه دو یا چند محصول}
+
+در سوال‌های مقایسه‌ای، عامل محصولات ذکرشده را جداگانه جست‌وجو می‌کند و بر اساس معیار گفته‌شده در پرسش، یکی را انتخاب می‌کند.
+
+مسیر اجرا:
+
+\begin{latin}
+\begin{lstlisting}
+Agent._compare()
+Agent._choose_product()
+\end{lstlisting}
+\end{latin}
+
+\subsection{سناریو پنجم: تصویر به محصول}
+
+در پیام تصویری، سیستم تصویر Base64 را می‌پذیرد و یک \code{base\_random\_key} از ایندکس تصویری فاز اول برمی‌گرداند. برای ساده نگه داشتن پروژه، در زمان درخواست مدل سنگین CLIP یا VLM اجرا نمی‌شود.
+
+مسیر اجرا:
+
+\begin{latin}
+\begin{lstlisting}
+Agent._image_response()
+Phase1RAGTool.image_to_base()
+\end{lstlisting}
+\end{latin}
+
+\section{گاردریل‌ها}
+
+اگر کاربر بخواهد پرامپت سیستم، کانتکست پنهان یا دستورهای داخلی را مشاهده کند، عامل پاسخ رد می‌دهد. اگر سوال خارج از دامنه داده محصولات باشد، عامل اعلام می‌کند که نسبت به پاسخ اطمینان ندارد.
+
+مسیر اجرا:
+
+\begin{latin}
+\begin{lstlisting}
+Agent._is_injection()
+Agent.chat()
+\end{lstlisting}
+\end{latin}
+
+\section{روش اجرا}
+
+\subsection{نصب نیازمندی‌ها}
+
+از ریشه پروژه اجرا کنید:
+
+\begin{latin}
+\begin{lstlisting}
+cd "<PROJECT_ROOT>\phase2"
+pip install -r .\requirements.txt
+\end{lstlisting}
+\end{latin}
+
+\subsection{اجرای سرور}
+
+\begin{latin}
+\begin{lstlisting}
+$env:PHASE1_ARTIFACTS_DIR = "..\phase1\torob_rag\artifacts"
+python .\run_server.py --host 127.0.0.1 --port 8000
+\end{lstlisting}
+\end{latin}
+
+خروجی مورد انتظار:
+
+\begin{latin}
+\begin{lstlisting}
+Phase 2 Agentic RAG is running at http://127.0.0.1:8000
+Use POST /chat. Press Ctrl+C to stop.
+\end{lstlisting}
+\end{latin}
+
+\subsection{تست در مرورگر}
+
+پس از اجرای سرور، آدرس زیر را باز کنید:
+
+\begin{latin}
+\begin{lstlisting}
+http://127.0.0.1:8000/
+\end{lstlisting}
+\end{latin}
+
+در این صفحه می‌توانید یک پیام وارد کنید و نتیجه فراخوانی \code{/chat} را ببینید.
+
+\subsection{بررسی سلامت}
+
+\begin{latin}
+\begin{lstlisting}
+http://127.0.0.1:8000/health
+\end{lstlisting}
+\end{latin}
+
+پاسخ مورد انتظار:
+
+\begin{latin}
+\begin{lstlisting}[language=json]
+{"status": "ok"}
+\end{lstlisting}
+\end{latin}
+
+\section{روش تست}
+
+\subsection{تست‌های آماده}
+
+\begin{latin}
+\begin{lstlisting}
+$env:PHASE1_ARTIFACTS_DIR = "..\phase1\torob_rag\artifacts"
+python .\tests\smoke_test.py
+python .\tests\http_smoke_test.py
+\end{lstlisting}
+\end{latin}
+
+\subsection{دموی آماده برای ارائه}
+
+اسکریپت دمو یک سرور موقت \code{/chat} اجرا می‌کند، سناریوهای اصلی ارزیابی را به شکل درخواست HTTP واقعی می‌فرستد، فیلدهای مورد انتظار پاسخ را اعتبارسنجی می‌کند، request و response هر مرحله را چاپ می‌کند، و در پایان سرور را می‌بندد.
+
+\begin{latin}
+\begin{lstlisting}
+python .\tests\presentation_demo.py
+\end{lstlisting}
+\end{latin}
+
+\subsection{تست دستی با PowerShell}
+
+\begin{latin}
+\begin{lstlisting}
+$body = @{
+  chat_id = "test-1"
+  messages = @(
+    @{
+      type = "text"
+      content = "کمترین قیمت برای ماگ هندوانه فانتزی و کارتونی کد 1375 چقدر است؟"
+    }
+  )
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/chat" `
+  -ContentType "application/json; charset=utf-8" `
+  -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
+\end{lstlisting}
+\end{latin}
+
+\section{نمونه خروجی}
+
+پرسش نمونه:
+
+\begin{quote}
+کمترین قیمت برای ماگ هندوانه فانتزی و کارتونی کد 1375 چقدر است؟
+\end{quote}
+
+خروجی نمونه:
+
+\begin{latin}
+\begin{lstlisting}[language=json]
+{
+  "message": "ANSWER_TEXT_IN_PERSIAN",
+  "base_random_keys": ["hhtgaa"],
+  "member_random_keys": ["pjwyvz"]
+}
+\end{lstlisting}
+\end{latin}
+
+در اجرای واقعی، متن پیام شامل توضیح فارسی قیمت است و مقدار قیمت از جدول \code{members\_clean.parquet} استخراج می‌شود.
+
+\section{محدودیت‌ها}
+
+\begin{itemize}
+  \item بازیابی متنی به صورت جست‌وجوی واژگانی ساده روی داده پاک‌سازی‌شده فاز اول انجام می‌شود تا پروژه روی سیستم فعلی به راحتی اجرا شود.
+  \item برای تصویر، سیستم از ایندکس تصویری فاز اول یک کلید Base برمی‌گرداند و در لحظه درخواست مدل سنگین بینایی اجرا نمی‌کند.
+  \item پاسخ‌دهی بدون API خارجی LLM انجام می‌شود و بر اساس شواهد بازیابی‌شده قطعی و قابل تکرار است.
+  \item در اولین اجرای سرور، بارگذاری فایل‌های Parquet فاز اول ممکن است کمی زمان ببرد.
+\end{itemize}
+
+\section{جمع‌بندی}
+
+این پیاده‌سازی نیازهای اصلی فاز دوم را با ساختاری ساده و قابل اجرا پوشش می‌دهد. عامل روی داده واقعی فاز اول کار می‌کند، API مورد نیاز داور را فراهم می‌کند، حافظه کوتاه‌مدت دارد، برای پاسخ‌ها کلیدهای Base و Member را در قالب درست برمی‌گرداند و لاگ و متریک پایه نیز تولید می‌کند.
+
+\end{document}

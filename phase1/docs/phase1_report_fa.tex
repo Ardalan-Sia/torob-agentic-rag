@@ -1,0 +1,466 @@
+% برای کامپایل این فایل از XeLaTeX استفاده کنید.
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\usepackage{xepersian}
+
+\settextfont{Tahoma}
+\setlatintextfont{Times New Roman}
+\setmonofont{Consolas}
+
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{codeframe}{RGB}{210,210,210}
+\definecolor{linkblue}{RGB}{20,80,160}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=linkblue,
+  urlcolor=linkblue,
+  citecolor=linkblue
+}
+
+\lstdefinestyle{projectcode}{
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  numbers=none
+}
+
+\lstdefinelanguage{json}{
+  basicstyle=\ttfamily\small,
+  showstringspaces=false,
+  breaklines=true,
+  morestring=[b]",
+  morecomment=[l]{//},
+  literate=
+   *{0}{{{\color{blue}0}}}{1}
+    {1}{{{\color{blue}1}}}{1}
+    {2}{{{\color{blue}2}}}{1}
+    {3}{{{\color{blue}3}}}{1}
+    {4}{{{\color{blue}4}}}{1}
+    {5}{{{\color{blue}5}}}{1}
+    {6}{{{\color{blue}6}}}{1}
+    {7}{{{\color{blue}7}}}{1}
+    {8}{{{\color{blue}8}}}{1}
+    {9}{{{\color{blue}9}}}{1}
+}
+
+\lstset{style=projectcode}
+
+\newcommand{\code}[1]{\lr{\texttt{#1}}}
+
+\title{مستندات فاز اول پروژه\\
+سامانه بازیابی محصول ترب با RAG}
+\author{پروژه بازیابی محصول ترب}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+هدف فاز اول، ساخت یک پایپلاین قابل بازتولید برای بازیابی محصول روی داده‌های ترب است. این فاز شامل شناخت دیتاست، تحلیل اکتشافی داده، پاک‌سازی و یکپارچه‌سازی، ساخت متن قابل embedding، تولید embeddingهای متنی و تصویری، ذخیره آن‌ها در FAISS، پیاده‌سازی سه خط پایه بازیابی متنی، تصویری و چندوجهی، و ارزیابی خروجی‌ها است. این گزارش توضیح می‌دهد که هر بخش از مستند فاز اول چگونه در کد و artifacts پروژه پیاده‌سازی شده است.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{محل قرارگیری پروژه}
+
+کدهای فاز اول در ساختار جداگانه زیر قرار دارند:
+
+\begin{latin}
+\begin{lstlisting}
+<PROJECT_ROOT>\phase1
+\end{lstlisting}
+\end{latin}
+
+داده خام محلی و خروجی‌های تولیدشده فاز اول در همین پوشه نگهداری شده‌اند، اما طبق فایل \code{.gitignore} وارد git نمی‌شوند:
+
+\begin{latin}
+\begin{lstlisting}
+phase1/Torob-Database
+phase1/torob_rag/artifacts
+\end{lstlisting}
+\end{latin}
+
+\section{خلاصه نیازمندی‌ها و پیاده‌سازی}
+
+\begin{longtable}{|p{0.26\textwidth}|p{0.40\textwidth}|p{0.24\textwidth}|}
+\hline
+\textbf{بخش مستند فاز اول} & \textbf{پیاده‌سازی انجام‌شده} & \textbf{فایل‌ها و خروجی‌ها} \\
+\hline
+شناخت دیتاست & خواندن همه جدول‌های relational ترب و بررسی تعداد ردیف‌ها، ستون‌ها، کلیدهای یکتا، missing values و روابط کلید خارجی. & \code{checkpoint\_01\_load\_sanity.py}، \code{checkpoint\_01\_sanity.json} \\
+\hline
+EDA & تحلیل کیفیت داده، قیمت‌ها، ناموجودی‌ها، عدم توازن دسته/برند، تعداد فروشنده برای هر Base، طول queryها و بازه timestampها. & \code{checkpoint\_02\_eda\_report.py}، \code{artifacts/eda} \\
+\hline
+Cleaning و preprocessing & حذف قیمت‌های نامعتبر، cap کردن outlier قیمت، join با برند/دسته، ساخت متن استاندارد برای embedding و تولید جدول unified. & \code{checkpoint\_03\_clean\_unify.py}، \code{artifacts/clean} \\
+\hline
+Feature engineering & تولید متن \code{text\_for\_embedding} از نام فارسی، نام انگلیسی، دسته، برند و ویژگی‌های اضافه؛ آماده‌سازی subset متنی و تصویری. & \code{checkpoint\_04a*.py}، \code{checkpoint\_04b\_text\_embeddings.py} \\
+\hline
+Text-only RAG & embedding متنی با مدل چندزبانه، ساخت FAISS با \code{IndexFlatIP} و بازیابی top-k محصولات. & \code{embeddings/text}، \code{vector\_db/faiss/text} \\
+\hline
+Image-only RAG & انتخاب subset تصویری، دانلود تصاویر، embedding با CLIP، ساخت FAISS تصویری و sanity evaluation. & \code{image/checkpoint\_08*.py}، \code{embeddings/clip\_v1/image} \\
+\hline
+Multimodal RAG & ساخت corpus مشترک متن+تصویر، embedding متن روی محصولات دارای تصویر، و late fusion بین امتیاز متن و تصویر. & \code{multimodal/checkpoint\_09*.py} \\
+\hline
+Evaluation & ارزیابی text retrieval با \code{Recall@k}، \code{MRR@k} و \code{NDCG@k}، تحلیل خطا، و sanity evaluation برای image/multimodal. & \code{artifacts/eval} \\
+\hline
+بازتولیدپذیری & نگهداری پارامترها در \code{config.yaml}، ذخیره همه خروجی‌های checkpointها و ثابت نگه داشتن seed. & \code{configs/config.yaml}، \code{requirements.txt} \\
+\hline
+\end{longtable}
+
+\section{معماری کلی فاز اول}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=1.35cm,
+  box/.style={rectangle, draw, rounded corners, align=center, minimum width=2.85cm, minimum height=0.85cm},
+  db/.style={cylinder, draw, shape border rotate=90, align=center, minimum width=2.7cm, minimum height=1.1cm},
+  arrow/.style={-{Latex[length=3mm]}, thick}
+]
+\node[db] (raw) {داده خام\\Parquet};
+\node[box, left=of raw] (sanity) {Load + Sanity};
+\node[box, left=of sanity] (eda) {EDA};
+\node[box, below=of eda] (clean) {Cleaning + Unify};
+\node[box, right=of clean] (subset) {Subset\\Text/Image};
+\node[box, right=of subset] (embed) {Embedding\\Text/CLIP};
+\node[box, below=of embed] (faiss) {FAISS\\Indexes};
+\node[box, left=of faiss] (retrieval) {Retrieval\\Baselines};
+\node[box, left=of retrieval] (eval) {Evaluation\\Error Analysis};
+\node[db, below=of subset] (artifacts) {Artifacts};
+
+\draw[arrow] (raw) -- (sanity);
+\draw[arrow] (sanity) -- (eda);
+\draw[arrow] (eda) -- (clean);
+\draw[arrow] (clean) -- (subset);
+\draw[arrow] (subset) -- (embed);
+\draw[arrow] (embed) -- (faiss);
+\draw[arrow] (faiss) -- (retrieval);
+\draw[arrow] (retrieval) -- (eval);
+\draw[arrow] (clean) -- (artifacts);
+\draw[arrow] (embed) -- (artifacts);
+\draw[arrow] (faiss) -- (artifacts);
+\draw[arrow] (eval) -- (artifacts);
+\end{tikzpicture}
+\caption{معماری کلی پایپلاین فاز اول}
+\end{figure}
+
+\section{ساختار داده‌ها}
+
+دیتاست فاز اول شامل جدول‌های relational زیر است. دو سطح مهم محصول در پروژه وجود دارد: \lr{Base Product} که نماینده یک محصول اصلی است، و \lr{Member Product} که همان محصول را در سطح فروشنده/فروشگاه با قیمت مشخص نشان می‌دهد.
+
+\begin{longtable}{|p{0.23\textwidth}|p{0.16\textwidth}|p{0.50\textwidth}|}
+\hline
+\textbf{جدول} & \textbf{تعداد ردیف} & \textbf{نقش در پروژه} \\
+\hline
+\code{base\_products} & 1,022,298 & محصولات پایه شامل \code{random\_key}، نام فارسی/انگلیسی، برند، دسته، ویژگی‌ها و تصویر. \\
+\hline
+\code{members} & 1,948,665 & محصولات فروشگاهی شامل قیمت، فروشگاه و \code{base\_random\_key}. \\
+\hline
+\code{searches} & 588,347 & لاگ جست‌وجوی کاربران و نتایج نمایش‌داده‌شده. \\
+\hline
+\code{base\_views} & 199,916 & بازدید کاربران از محصولات پایه پس از جست‌وجو. \\
+\hline
+\code{final\_clicks} & 17,371 & کلیک نهایی کاربر روی فروشنده/محصول فروشگاهی. \\
+\hline
+\code{categories} & 746 & ساختار دسته‌بندی محصولات. \\
+\hline
+\code{brands} & 2,025 & اطلاعات برندها. \\
+\hline
+\code{shops} & 23,342 & اطلاعات فروشگاه، شهر، امتیاز و ضمانت. \\
+\hline
+\code{cities} & 651 & نام شهرها. \\
+\hline
+\end{longtable}
+
+\section{تحلیل اکتشافی داده}
+
+در مرحله EDA، کیفیت داده و الگوهای مهم بررسی شد. مهم‌ترین یافته‌ها:
+
+\begin{itemize}[noitemsep]
+  \item نرخ missing در \code{base\_products} بسیار کم بود؛ برای \code{image\_url} حدود 0.0033.
+  \item در جدول \code{members} فقط 2 قیمت صفر یا منفی دیده شد، اما outlier شدید قیمت وجود داشت.
+  \item میانه قیمت فروشنده‌ها 1,700,000 و صدک 99 برابر 95,000,000 بود.
+  \item بیشینه قیمت خام حدود \lr{1.99e17} بود و باید برای جلوگیری از اثر مخرب روی تحلیل و ranking کنترل می‌شد.
+  \item تعداد فروشنده برای هر base در میانه 1، در صدک 99 برابر 17 و در بیشینه 1548 بود.
+  \item در نمونه 200,000تایی queryها، میانه طول query برابر 13 و صدک 95 برابر 28 کاراکتر بود.
+  \item عدم توازن برند شدید بود؛ سهم 10 برند پرتکرار حدود 86.3\% گزارش شد.
+\end{itemize}
+
+خروجی‌های EDA در مسیر زیر قرار دارند:
+
+\begin{latin}
+\begin{lstlisting}
+phase1/torob_rag/artifacts/eda
+\end{lstlisting}
+\end{latin}
+
+\section{پاک‌سازی و یکپارچه‌سازی}
+
+در این مرحله داده خام به داده قابل استفاده برای retrieval تبدیل شد. تصمیم‌های اصلی:
+
+\begin{itemize}[noitemsep]
+  \item قیمت‌های کمتر از 1 حذف شدند.
+  \item قیمت‌ها با مقدار \code{price\_max\_cap = 1000000000} کنترل شدند.
+  \item 440 ردیف نامعتبر از جدول \code{members} حذف شد.
+  \item تعداد memberها از 1,948,665 به 1,948,225 رسید.
+  \item برای همه 1,022,298 محصول پایه متن embedding ساخته شد و \code{bp\_text\_empty = 0} بود.
+\end{itemize}
+
+خروجی‌های اصلی:
+
+\begin{latin}
+\begin{lstlisting}
+phase1/torob_rag/artifacts/clean/base_products_clean.parquet
+phase1/torob_rag/artifacts/clean/members_clean.parquet
+phase1/torob_rag/artifacts/clean/unified_base_products.parquet
+phase1/torob_rag/artifacts/clean/cleaning_summary.json
+\end{lstlisting}
+\end{latin}
+
+\section{استراتژی subset}
+
+به دلیل محدودیت CPU و حجم بیش از یک میلیون محصول، برای embedding متنی یک subset قابل دفاع ساخته شد. نسخه نهایی subset با وزن‌دهی به لاگ‌ها ساخته شد:
+
+\begin{itemize}[noitemsep]
+  \item نسخه: \code{v2\_logs\_weighted}
+  \item اندازه subset: 200,000 محصول پایه
+  \item وزن impression: 1
+  \item وزن view: 5
+  \item وزن final click: 20
+\end{itemize}
+
+این روش نسبت به انتخاب تصادفی بهتر است، چون محصولاتی را نگه می‌دارد که در رفتار واقعی کاربران بیشتر دیده یا کلیک شده‌اند. با این حال، در گزارش خطا مشاهده شد که پوشش برخی intentها مثل بعضی queryهای موبایل هنوز پایین است؛ بنابراین بخشی از خطاها به محدودیت پوشش subset مربوط است.
+
+\section{بازیابی متنی}
+
+برای baseline متنی از مدل چندزبانه زیر استفاده شد:
+
+\begin{latin}
+\begin{lstlisting}
+sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+\end{lstlisting}
+\end{latin}
+
+مشخصات embedding متنی:
+
+\begin{itemize}[noitemsep]
+  \item تعداد محصولات: 200,000
+  \item بعد embedding: 384
+  \item \code{batch\_size}: 64
+  \item \code{max\_length}: 128
+  \item normalization فعال بود.
+\end{itemize}
+
+برای جست‌وجو از FAISS با inner product روی بردارهای normalize شده استفاده شد؛ در این حالت inner product معادل cosine similarity عمل می‌کند.
+
+فایل‌های اصلی:
+
+\begin{latin}
+\begin{lstlisting}
+phase1/torob_rag/src/torob_rag/embeddings/checkpoint_04b_text_embeddings.py
+phase1/torob_rag/src/torob_rag/vector_db/checkpoint_05a_build_faiss_text.py
+phase1/torob_rag/src/torob_rag/eval/checkpoint_06_text_only_eval.py
+\end{lstlisting}
+\end{latin}
+
+\section{ارزیابی بازیابی متنی}
+
+ارزیابی با ground truth از \code{base\_views} انجام شد؛ یعنی محصولاتی که کاربر پس از جست‌وجو واقعا دیده است. فقط نمونه‌هایی استفاده شدند که حداقل یک clicked item داخل subset داشتند.
+
+\begin{longtable}{|p{0.28\textwidth}|p{0.18\textwidth}|p{0.42\textwidth}|}
+\hline
+\textbf{متریک} & \textbf{مقدار} & \textbf{توضیح} \\
+\hline
+\code{eval\_samples} & 5,000 & تعداد جست‌وجوهای ارزیابی‌شده. \\
+\hline
+\code{recall@1} & 0.0062 & درصد مواردی که جواب درست در رتبه اول بود. \\
+\hline
+\code{recall@5} & 0.0216 & درصد مواردی که جواب درست در پنج نتیجه اول بود. \\
+\hline
+\code{recall@10} & 0.0328 & درصد مواردی که جواب درست در ده نتیجه اول بود. \\
+\hline
+\code{mrr@10} & 0.01254 & میانگین reciprocal rank تا رتبه 10. \\
+\hline
+\code{ndcg@10} & 0.01406 & کیفیت رتبه‌بندی با در نظر گرفتن جایگاه نتیجه درست. \\
+\hline
+\code{failures} & 4,836 & تعداد نمونه‌هایی که نتیجه درست در top-k دیده نشد. \\
+\hline
+\end{longtable}
+
+تحلیل خطا نشان داد queryهای کوتاه و عمومی ambiguity بالایی دارند و بعضی queryهای ترکیبی به سمت کلمات غالب drift می‌کنند. نمونه‌های قابل خواندن خطا در فایل زیر ذخیره شده‌اند:
+
+\begin{latin}
+\begin{lstlisting}
+phase1/torob_rag/artifacts/eval/text/failure_examples_readable.csv
+\end{lstlisting}
+\end{latin}
+
+\section{بازیابی تصویری}
+
+برای baseline تصویری ابتدا 20,000 محصول دارای تصویر و view بالا انتخاب شد. سپس تصاویر دانلود و با CLIP embedding شدند.
+
+\begin{itemize}[noitemsep]
+  \item محصولات انتخاب‌شده برای subset تصویری: 20,000
+  \item تعداد دانلود موفق: 16,236
+  \item تعداد دانلود ناموفق: 3,764
+  \item مدل تصویر: \code{openai/clip-vit-base-patch32}
+  \item بعد embedding: 512
+  \item \code{batch\_size}: 32
+  \item normalization فعال بود.
+\end{itemize}
+
+Sanity evaluation تصویری نشان داد:
+
+\begin{itemize}[noitemsep]
+  \item \code{self\_recall@1 = 0.993964}
+  \item میانه \code{top1\_score} برابر 1.0 بود.
+\end{itemize}
+
+این تست sanity است، چون query همان embedding تصویر محصول است؛ بنابراین انتظار می‌رود خود محصول در رتبه اول برگردد.
+
+\section{بازیابی چندوجهی}
+
+برای بخش امتیازی چندوجهی، corpus مشترک روی محصولاتی ساخته شد که تصویر آن‌ها با موفقیت دانلود و embedding شده بود.
+
+\begin{itemize}[noitemsep]
+  \item تعداد آیتم‌های corpus مشترک: 16,236
+  \item embedding متن برای همین corpus با مدل \code{paraphrase-multilingual-MiniLM-L12-v2}
+  \item بعد embedding متن: 384
+  \item روش ترکیب: late fusion
+\end{itemize}
+
+فرمول ترکیب امتیاز:
+
+\begin{latin}
+\begin{lstlisting}
+score = alpha_text * text_score + (1 - alpha_text) * image_score
+\end{lstlisting}
+\end{latin}
+
+در sanity evaluation مقدار \code{alpha\_text = 0.5}، \code{pool\_text = 200} و \code{pool\_image = 200} استفاده شد. برای نمونه 2,000تایی، \code{recall@1}، \code{recall@5}، \code{recall@10} و \code{mrr@10} همگی برابر 1.0 بودند. این نیز sanity test است، نه ارزیابی واقعی روی لاگ multimodal کاربر.
+
+\section{خروجی‌های مهم artifacts}
+
+\begin{longtable}{|p{0.38\textwidth}|p{0.52\textwidth}|}
+\hline
+\textbf{مسیر} & \textbf{محتوا} \\
+\hline
+\code{artifacts/checkpoint\_01\_sanity.json} & خلاصه sanity check جدول‌ها و روابط. \\
+\hline
+\code{artifacts/eda} & نمودارها و خلاصه EDA. \\
+\hline
+\code{artifacts/clean} & داده پاک‌سازی‌شده و unified برای فازهای بعد. \\
+\hline
+\code{artifacts/subset} & subsetهای متنی و خلاصه انتخاب آن‌ها. \\
+\hline
+\code{artifacts/embeddings/text} & embedding و index metadata متنی. \\
+\hline
+\code{artifacts/vector\_db/faiss/text} & FAISS index متنی. \\
+\hline
+\code{artifacts/embeddings/clip\_v1/image} & embedding و index metadata تصویری. \\
+\hline
+\code{artifacts/vector\_db/faiss/clip\_v1/image} & FAISS index تصویری. \\
+\hline
+\code{artifacts/multimodal/clip\_v1} & corpus مشترک متن/تصویر. \\
+\hline
+\code{artifacts/eval} & گزارش‌های ارزیابی و تحلیل خطا. \\
+\hline
+\end{longtable}
+
+\section{روش اجرا در VSCode}
+
+پوشه فاز اول را در VSCode باز کنید:
+
+\begin{latin}
+\begin{lstlisting}
+<PROJECT_ROOT>\phase1
+\end{lstlisting}
+\end{latin}
+
+سپس در ترمینال PowerShell:
+
+\begin{latin}
+\begin{lstlisting}
+cd "<PROJECT_ROOT>\phase1"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:PYTHONPATH = ".\torob_rag\src"
+\end{lstlisting}
+\end{latin}
+
+نمونه اجرای checkpointها:
+
+\begin{latin}
+\begin{lstlisting}
+python .\torob_rag\src\torob_rag\eda\checkpoint_01_load_sanity.py
+python .\torob_rag\src\torob_rag\eda\checkpoint_02_eda_report.py
+python .\torob_rag\src\torob_rag\cleaning\checkpoint_03_clean_unify.py
+python .\torob_rag\src\torob_rag\eda\checkpoint_04a2_build_subset_from_searches.py
+python .\torob_rag\src\torob_rag\embeddings\checkpoint_04b_text_embeddings.py
+python .\torob_rag\src\torob_rag\vector_db\checkpoint_05a_build_faiss_text.py
+python .\torob_rag\src\torob_rag\eval\checkpoint_06_text_only_eval.py
+\end{lstlisting}
+\end{latin}
+
+برای بخش تصویر و چندوجهی:
+
+\begin{latin}
+\begin{lstlisting}
+python .\torob_rag\src\torob_rag\image\checkpoint_08a_build_image_subset.py
+python .\torob_rag\src\torob_rag\image\checkpoint_08b_download_images.py
+python .\torob_rag\src\torob_rag\image\checkpoint_08c_clip_image_embeddings.py
+python .\torob_rag\src\torob_rag\image\checkpoint_08d_build_faiss_image.py
+python .\torob_rag\src\torob_rag\image\checkpoint_08f_image_index_sanity.py
+python .\torob_rag\src\torob_rag\multimodal\checkpoint_09a_prepare_mm_corpus.py
+python .\torob_rag\src\torob_rag\multimodal\checkpoint_09b_embed_mm_text.py
+python .\torob_rag\src\torob_rag\multimodal\checkpoint_09c_build_faiss_mm_text.py
+python .\torob_rag\src\torob_rag\multimodal\checkpoint_09e_multimodal_sanity_eval.py
+\end{lstlisting}
+\end{latin}
+
+\section{ارتباط با فاز دوم}
+
+فاز دوم به همین خروجی‌های فاز اول وابسته است. مهم‌ترین فایل‌هایی که عامل فاز دوم استفاده می‌کند:
+
+\begin{latin}
+\begin{lstlisting}
+phase1/torob_rag/artifacts/clean/unified_base_products.parquet
+phase1/torob_rag/artifacts/clean/members_clean.parquet
+phase1/torob_rag/artifacts/embeddings/clip_v1/image/image_index.parquet
+\end{lstlisting}
+\end{latin}
+
+بنابراین فاز اول نقش لایه داده و retrieval را دارد و فاز دوم روی آن API، حافظه کوتاه‌مدت و منطق agentic اضافه می‌کند.
+
+\section{محدودیت‌ها و پیشنهادهای بهبود}
+
+\begin{itemize}
+  \item عملکرد text-only retrieval روی لاگ واقعی پایین است؛ علت‌های اصلی شامل ambiguity queryهای کوتاه، پوشش محدود subset و نبود reranker قوی‌تر است.
+  \item برای بهبود متن می‌توان از encoderهای retrieval-tuned مانند E5، reranking، boost واژگانی و افزایش پوشش subset استفاده کرد.
+  \item ارزیابی تصویر و multimodal فعلی بیشتر sanity check است و بهتر است در نسخه بعدی روی داده واقعی query/image یا سناریوهای دستی دقیق‌تر ارزیابی شود.
+  \item metadata بعضی artifactهای قدیمی ممکن است مسیرهای زمان تولید را نگه داشته باشند؛ مسیر اجرایی فعلی پروژه روی درایو D است.
+  \item برای production بهتر است versioning رسمی برای embedding runها، lockfile وابستگی‌ها، و تست‌های کوچک regression اضافه شود.
+\end{itemize}
+
+\section{جمع‌بندی}
+
+فاز اول یک پایپلاین کامل و قابل اجرا برای آماده‌سازی داده و ساخت baselineهای RAG محصول فراهم می‌کند. خروجی‌های پاک‌سازی، embeddingها، FAISS indexها و گزارش‌های ارزیابی در artifacts ذخیره شده‌اند و همین خروجی‌ها مبنای فاز دوم هستند. با وجود محدودیت‌های CPU و subset، ساختار checkpointمحور پروژه باعث می‌شود مراحل کار قابل بازتولید، قابل توضیح و قابل توسعه باشند.
+
+\end{document}

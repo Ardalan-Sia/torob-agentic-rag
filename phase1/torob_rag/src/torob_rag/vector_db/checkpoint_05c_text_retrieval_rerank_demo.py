@@ -98,7 +98,7 @@ def main():
     model = AutoModel.from_pretrained(model_name)
     model.eval()
 
-    query = input("Enter your query (fa/en): ").strip()
+    query = input("Enter query (fa/en): ").strip()
     if not query:
         raise ValueError("Empty query")
 

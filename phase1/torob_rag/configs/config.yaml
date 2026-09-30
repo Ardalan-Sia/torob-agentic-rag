@@ -1,7 +1,7 @@
 seed: 42
 
 paths:
-  data_dir: "/home/ardalan-sia/Documents/ML/Project-github/MLSD-Project/Torob-Database"
+  data_dir: "./Torob-Database"
   artifacts_dir: "./torob_rag/artifacts"
 
 tables:
@@ -58,7 +58,7 @@ embeddings:
     reuse:
       enabled: true
       # مسیر دقیق فولدری که ids.npy و text_emb.npy و meta.json داخلش هست:
-      precomputed_dir: "/ABS/PATH/TO/your/OUT_DIR/embeddings/sample/text"
+      precomputed_dir: "./torob_rag/artifacts/embeddings/text"
       ids_file: "ids.npy"
       emb_file: "text_emb.npy"
       meta_file: "meta.json"
@@ -71,7 +71,7 @@ embeddings:
 
 
 images:
-  images_dir: "/home/ardalan-sia/Documents/ML/Project3/images/balanced_images"
+  images_dir: "./sample_image"
   allowed_ext: [".jpg", ".jpeg", ".png", ".webp"]
   filename_mode: "stem_is_random_key"
 
@@ -94,9 +94,6 @@ evaluation:
   seed: 42
 
 
-runs:
-  text_run: "e5_v1"
-
 embeddings_e5:
   model_name: "intfloat/multilingual-e5-small"
   batch_size: 64
@@ -105,9 +102,6 @@ embeddings_e5:
 
 runs:
   text_run: "e5_v1"
-
-
-runs:
   image_run: "clip_v1"
 
 image_subset:

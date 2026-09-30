@@ -246,7 +246,7 @@ def main():
     rprint("[bold green]Checkpoint 02 complete[/bold green]")
     rprint(f"Artifacts saved in: {out_dir}")
 
-    # print a concise console summary for you to paste back here
+    # Print a concise console summary for quick inspection.
     rprint("[bold]Key console summary:[/bold]")
     rprint(f"- price max: {summary['checks']['price']['max']}")
     rprint(f"- price p99.9: {summary['checks']['price']['p999']}")

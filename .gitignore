@@ -1,34 +1,58 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 *.egg-info/
-.dist-info/
-.venv/
-.env
-.ipynb_checkpoints/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
-# OS
-.DS_Store
+# Virtual environments and local configuration
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
 
-# Logs/temp
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Runtime state
+logs/
+runtime/
+phase2/logs/
+phase2/runtime/
 *.log
 *.tmp
 *.temp
 
-# Project outputs (DO NOT COMMIT)
-torob_rag/artifacts/
+# Private working notes
+private_notes/
 
-# Data files (DO NOT COMMIT)
-torob_rag/data/
-**/*.parquet
-**/*.npy
-**/*.index
-**/*.bin
-**/*.pt
-**/*.pth
-**/*.onnx
+# Raw data and generated ML artifacts
+phase1/Torob-Database/
+phase1/torob_rag/artifacts/
+phase1/torob_rag/data/
+run/
+*.parquet
+*.npy
+*.npz
+*.index
+*.bin
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# LaTeX build products
+*.aux
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz

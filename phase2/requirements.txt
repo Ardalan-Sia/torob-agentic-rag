@@ -1,0 +1,8 @@
+# Runtime dependencies for the Torob Agentic RAG service.
+pandas>=2.0
+pyarrow>=12.0
+numpy>=1.24
+
+# Optional bonus tracing integration for OpenTelemetry/Phoenix.
+opentelemetry-sdk>=1.25
+opentelemetry-exporter-otlp-proto-http>=1.25

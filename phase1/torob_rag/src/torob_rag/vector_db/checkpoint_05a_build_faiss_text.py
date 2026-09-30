@@ -40,7 +40,7 @@ def main():
 
     rprint({"loaded_embeddings": X.shape, "dtype": str(X.dtype)})
 
-    # Since your embeddings are L2-normalized, inner product == cosine similarity.
+    # The embeddings are L2-normalized, so inner product equals cosine similarity.
     index = faiss.IndexFlatIP(dims)
     index.add(X)
 
